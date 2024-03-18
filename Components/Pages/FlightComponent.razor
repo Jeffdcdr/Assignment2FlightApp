@@ -1,0 +1,313 @@
+﻿@*
+    ---------------------------------------------------------------------------------------
+    GROUP 3 - OOP-2
+    Name: Paolo Bermudez | Romer John De Lina | Jonathan Buccat | Jeffry Ancheta
+    Date: March 17, 2024
+    Code Version 2.0
+    ---------------------------------------------------------------------------------------
+    Program Description:
+    This Blazor application is designed to manage and display flight and reservation information for a fictional airline booking system.
+    It provides functionalities to search for flights based on departure and arrival airports, day of the week, and to reserve seats on selected flights.
+    Additionally, it allows users to search for reservations using a reservation code, airline, or traveler's name.
+
+    Inputs:
+    - Departure Airport: The airport from which the flight departs.
+    - Arrival Airport: The airport at which the flight arrives.
+    - Day: The day of the week on which the flight operates.
+    - Reservation Code: A unique code identifying a reservation.
+    - Airline: The name of the airline operating the flight.
+    - Traveler's Name: The name of the traveler who has made the reservation.
+
+    Outputs:
+    - List of matching flights based on search criteria.
+    - Details of selected flight including flight code, airline, day, time, and cost per seat.
+    - List of matching reservations based on search criteria.
+    - Details of selected reservation including reservation code, flight code, airline, and traveler's name.
+
+    Features:
+    - Flight Finder: Search functionality to find flights based on specific criteria.
+    - Flight Selection: Ability to select a flight from search results and view its details.
+    - Reservation Maker: Form to enter traveler's information and reserve seats on a selected flight.
+    - Reservation Finder: Search functionality to find reservations based on specific criteria.
+    - Reservation Selection: Ability to select a reservation from search results and view its details.
+
+    ---------------------------------------------------------------------------------------
+*@
+
+
+
+@page "/flight"
+@using AssignmentFlightsApp.Models
+@inject ReservationManager ReservationManager
+
+<div class="container">
+    <h3 class="text-center mb-3">Flight Finder</h3>
+    <div class="row g-3">
+        <div class="col-md-3">
+            <label for="from" class="form-label">From</label>
+            <select @bind="selectOption.DepartureAirport" class="form-select" id="from">
+                @foreach (var airport in departureAirport)
+                {
+                    <option value="@airport">@airport</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="to" class="form-label">To</label>
+            <select @bind="selectOption.ArrivalAirport" class="form-select" id="to">
+                @foreach (var airport in arrivalAirport)
+                {
+                    <option value="@airport">@airport</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3">
+            <label for="day" class="form-label">Day</label>
+            <select @bind="selectOption.Weekday" class="form-select" id="day">
+                @foreach (var day in weekdays)
+                {
+                    <option value="@day">@day</option>
+                }
+            </select>
+        </div>
+        <div class="col-md-3 align-self-end">
+            <button @onclick="SearchFlights" class="btn btn-primary w-100">Find Flights</button>
+        </div>
+    </div>
+
+    <h3 class="text-center mb-2 mt-2">Flights</h3>
+
+    @* Find FLights Button *@
+    <div class="row g-3">
+        <div class="col">
+            <label for="selectedFlight" class="form-label">Flights</label>
+            <select @bind="selectedFlightCode" class="form-select" id="selectedFlight">
+                <option value="">Select a Flight...</option>
+                @foreach (var flight in matchingFlights)
+                {
+                    <option value="@flight.FlightCode">@flight.FlightCode - @flight.Airline - @flight.From - @flight.To - @flight.Weekday - @flight.Time - @flight.CostPerSeat</option>
+                }
+            </select>
+            @if (flightSearchPerformed && !matchingFlights.Any())
+            {
+                <div class="alert alert-warning" role="alert">
+                    No matching flights found.
+                </div>
+            }
+        </div>
+    </div>
+
+    <h3 class="text-center mb-2 mt-2">Reserve</h3>
+    <div class="row g-3">
+        <div class="col">
+            <label for="FlightCode" class="form-label">Flight Code</label>
+            <input type="text" class="form-control" id="FlightCode" value="@selectedFlight?.FlightCode" readonly>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col">
+            <label for="Airline" class="form-label">Airline</label>
+            <input type="text" class="form-control" id="Airline" value="@selectedFlight?.Airline" readonly>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col">
+            <label for="Day" class="form-label">Day</label>
+            <input type="text" class="form-control" id="Day" value="@selectedFlight?.Weekday" readonly>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col">
+            <label for="Time" class="form-label">Time</label>
+            <input type="text" class="form-control" id="Time" value="@selectedFlight?.Time" readonly>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col">
+            <label for="Cost" class="form-label">Cost</label>
+            <input type="text" class="form-control" id="Cost" value="@selectedFlight?.CostPerSeat" readonly>
+        </div>
+    </div>
+
+    <div class="row g-3">
+        <div class="col">
+            <label for="Name" class="form-label">Name</label>
+            <input type="text" class="form-control" id="Name" @bind="selectOption.Name" placeholder="Enter your name">
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col">
+            <label for="Citizenship" class="form-label">Citizenship</label>
+            <input type="text" class="form-control" id="Citizenship" @bind="selectOption.Citizenship" placeholder="Enter your citizenship">
+        </div>
+    </div>
+     
+    @* Reserve Button *@
+    <div class="row g-3">
+        <div class="col text-center">
+            <button @onclick="ReserveSeat" class="btn btn-primary" disabled="@(!CanReserve)">Reserve</button>
+            <div class="d-flex align-items-center justify-content-center">
+                <p class="m-0">Reservation Code:</p>
+                @if (!string.IsNullOrEmpty(newReservationCode))
+                {
+                    <p id="reservationCodeDisplay" class="m-0">@newReservationCode</p>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="container">
+    <div class="row g-3">
+        <div class="col text-center">
+            <h3>Search Reservations</h3>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col">
+            <label>Reservation Code:</label>
+            <input @bind="selectOption.ReservationCode" class="form-control" placeholder="Reservation Code" />
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col">
+            <label>Airline:</label>
+            <input @bind="selectOption.Airline" class="form-control" placeholder="Airline" />
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col">
+            <label>Traveler's Name:</label>
+            <input @bind="selectOption.TravelerName" class="form-control" placeholder="Traveler's Name" />
+        </div>
+    </div>
+
+    @* Find reservation button *@
+    <div class="row g-3">
+        <div class="col text-center">
+            <button @onclick="FindReservations" class="btn btn-primary">Find Reservations</button>
+        </div>
+    </div>
+
+    <div class="row g-3 mb-2">
+        <div class="col">
+            <label for="selectedReservation" class="form-label">Reservations</label>
+            <select class="form-select" id="selectedReservation">
+                <option value="">Select a Reservation...</option>
+                @foreach (var reservation in foundReservations)
+                {
+                    <option value="@reservation.ReservationCode">@reservation.ReservationCode - @reservation.FlightCode - @reservation.Airline - @reservation.Name</option>
+                }
+            </select>
+            @if (reservationSearchPerformed && !foundReservations.Any())
+            {
+                <div class="alert alert-warning" role="alert">
+                    No matching reservations found.
+                </div>
+
+            }
+        </div>
+    </div>
+</div>
+
+
+
+<style>
+    .flex-item input:focus {
+        border: 1px solid #007bff;
+        outline: none;
+    }
+</style>
+
+@code {
+    // Holds the code of the flight selected by the user. This code is used to identify the chosen flight from the list of available flights.
+    private string selectedFlightCode { get; set; }
+
+    // A computed property that returns the first flight from the list of matching flights that has the same flight code as the selected flight code.
+    private Flight selectedFlight => matchingFlights.FirstOrDefault(f => f.FlightCode == selectedFlightCode);
+
+    
+
+    // A computed property that determines whether a seat can be reserved. This is true if a flight has been selected (selectedFlight is not null)
+    // and both the name and citizenship fields have been filled out by the user.
+    private bool CanReserve => selectedFlight != null && !string.IsNullOrWhiteSpace(selectOption.Name) && !string.IsNullOrWhiteSpace(selectOption.Citizenship);
+
+    // Stores the reservation code generated for a new reservation. This code is used as a unique identifier for each reservation made.
+    private string newReservationCode;
+
+
+    
+    // Attempts to reserve a seat on a selected flight using the user's input.
+    private void ReserveSeat()
+    {
+        // Check if the name or citizenship fields are empty or only contain whitespace.
+        // If either is true, exit the method without reserving a seat.
+        if (string.IsNullOrWhiteSpace(selectOption.Name) || string.IsNullOrWhiteSpace(selectOption.Citizenship))
+        {
+            return; // Early return if essential fields are missing.
+        }
+
+        // Check if a flight has been selected. If not, exit the method as a flight selection is required.
+        if (selectedFlight == null)
+        {
+            return; // Early return if no flight is selected.
+        }
+
+        // Generate a new reservation code using the ReservationManager.
+        newReservationCode = ReservationManager.GenerateReservationCode();
+
+        // Create a new reservation with the provided details (name, citizenship, etc.) and the selected flight's information.
+        var reservation = new Reservation(newReservationCode, selectedFlight.FlightCode, selectedFlight.Airline, selectedFlight, selectOption.Name, selectOption.Citizenship);
+
+        // Add the newly created reservation to the system through the ReservationManager.
+        ReservationManager.AddReservation(reservation);
+
+        // Notify the Blazor framework to re-render the component as the state has changed (new reservation has been added).
+        StateHasChanged();
+    }
+
+
+    // Holds the list of reservations found based on the search criteria.
+    public List<Reservation> foundReservations { get; set; } = new List<Reservation>();
+
+    // Searches for reservations based on the specified criteria and updates the UI accordingly.
+    private void FindReservations()
+    {
+        // Flag to indicate that a reservation search has been performed.
+        reservationSearchPerformed = true;
+
+        // Use the ReservationManager to find reservations matching the specified criteria
+        // from the user inputs: ReservationCode, Airline, and TravelerName.
+        foundReservations = ReservationManager.FindReservations(selectOption.ReservationCode, selectOption.Airline, selectOption.TravelerName);
+
+        // Check if any reservations were found. If yes, select the first found reservation
+        // and update the selected flight code to reflect this selection.
+        if (foundReservations.Any())
+        {
+            var firstMatch = foundReservations.First();
+            selectedFlightCode = firstMatch.FlightCode;
+        }
+        else
+        {
+            // If no reservations are found, clear the selected flight code.
+            selectedFlightCode = null;
+        }
+
+        // Notify Blazor to re-render the component with the updated state, reflecting the results of the search.
+        StateHasChanged();
+    }
+
+
+
+
+}
+
+
